@@ -220,8 +220,7 @@
         </div>
       </div>
     </div>
-
-    <!-- HUD -->
+       <!-- HUD -->
     <div id="hudTop">
       <div class="hudBox" style="flex:1.2">
         <div class="k">DISTRICT</div>
@@ -400,8 +399,7 @@
       try { await navigator.serviceWorker.register('./sw.js'); } catch(e){}
     });
   }
-
-  // --------- Overworld Three.js ----------
+    // --------- Overworld Three.js ----------
   const canvas = document.getElementById('threeCanvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -517,4 +515,697 @@
 
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(0.7, 0.08, 10, 24),
-        new THREE.MeshBasicMaterial({ color: unlocked ? col : 0x222222, transparent:true, opacity:0.55 }
+        new THREE.MeshBasicMaterial({ color: unlocked ? col : 0x222222, transparent:true, opacity:0.55 })
+      );
+      ring.rotation.x = Math.PI/2;
+      ring.position.copy(n.pos);
+
+      base.userData.nodeId = n.id;
+      ring.userData.nodeId = n.id;
+
+      nodeGroup.add(base, ring);
+      nodeMeshes.set(n.id, { base, ring });
+    });
+  }
+
+  // Camera follow (hybrid)
+  let camTarget = new THREE.Vector3(0, 0, 0);
+  function focusPlayer(){
+    camTarget.set(player.position.x, 0, player.position.z);
+  }
+
+  // --------- Input: Hybrid Movement + Raycast ----------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  let dragging = false;
+  let dragStart = {x:0,y:0};
+  let playerStart = {x:0,z:0};
+
+  function setPointer(e){
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    pointer.x = x * 2 - 1;
+    pointer.y = -(y * 2 - 1);
+  }
+
+  function hitTestNode(e){
+    setPointer(e);
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(nodeGroup.children, false);
+    if (!hits.length) return null;
+    return hits[0].object.userData.nodeId || null;
+  }
+
+  function hitGround(e){
+    setPointer(e);
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObject(ground, false);
+    if (!hits.length) return null;
+    return hits[0].point;
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    // Wenn Klick auf UI -> ignorieren (Buttons etc.)
+    if (e.target !== canvas) return;
+
+    const nodeId = hitTestNode(e);
+    if (nodeId) {
+      onSelectNode(nodeId);
+      return;
+    }
+    const p = hitGround(e);
+    if (!p) return;
+
+    dragging = true;
+    canvas.setPointerCapture(e.pointerId);
+    dragStart = {x:e.clientX, y:e.clientY};
+    playerStart = {x:player.position.x, z:player.position.z};
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = (e.clientX - dragStart.x);
+    const dy = (e.clientY - dragStart.y);
+
+    // Drag = move on X/Z (screen space mapped)
+    const speed = 0.018;
+    const nx = playerStart.x + dx * speed;
+    const nz = playerStart.z + dy * speed;
+
+    player.position.x = clamp(nx, -22, 22);
+    player.position.z = clamp(nz, -22, 22);
+
+    S.player.x = player.position.x;
+    S.player.z = player.position.z;
+
+    focusPlayer();
+  });
+
+  canvas.addEventListener('pointerup', (e) => {
+    dragging = false;
+  });
+
+  // Tap anywhere near node by proximity (nice mobile feel)
+  function nearestUnlockedNode(){
+    let best = null, bd = 999;
+    for(const n of nodes){
+      if(!S.unlocked[n.id]) continue;
+      const d = Math.hypot(player.position.x - n.pos.x, player.position.z - n.pos.z);
+      if(d < bd){ bd = d; best = {n, d}; }
+    }
+    return best;
+  }
+
+  // --------- Route UI list ----------
+  let selectedNodeId = "n1";
+  function renderRoute(){
+    elRouteList.innerHTML = "";
+    nodes.forEach(n => {
+      const unlocked = !!S.unlocked[n.id];
+      const card = document.createElement('div');
+      card.className = "nodeCard" + (n.id===selectedNodeId ? " active":"");
+      const left = document.createElement('div');
+      left.innerHTML = `
+        <div style="font-size:13px;font-weight:900">${escapeHtml(n.name)}</div>
+        <div class="tiny muted">${escapeHtml(n.district)} ${n.type==="mission" ? ("· Tier "+n.tier) : "· NPC"}</div>
+      `;
+      const badge = document.createElement('div');
+      badge.className = "badge " + (unlocked ? (n.type==="mission"?"mission":"npc") : "locked");
+      badge.textContent = unlocked ? (n.type==="mission" ? "MISSION" : "NPC") : "LOCKED";
+
+      card.append(left, badge);
+      card.onclick = () => onSelectNode(n.id);
+
+      elRouteList.appendChild(card);
+    });
+
+    // Tagline
+    if (S.progress < 0.35) elRouteTag.textContent = "Früher Tag. Die Stadt ist zu sauber, um echt zu sein.";
+    else if (S.progress < 0.7) elRouteTag.textContent = "Sunset sickert rein. Neon wird heißer. Lügen werden lauter.";
+    else elRouteTag.textContent = "Nacht. Asphalt klebt. Arasaka schaut hin. Jetzt zählt jeder Run.";
+  }
+
+  function onSelectNode(id){
+    selectedNodeId = id;
+    renderRoute();
+
+    const n = nodes.find(x=>x.id===id);
+    if(!n) return;
+
+    // Move player a bit toward selected node for “auto assist”
+    if (S.unlocked[id]){
+      tickMsg("SYSTEM", `${n.name} ausgewählt. Beweg dich hin oder tippe nochmal für Interaktion.`);
+      // If player is close, interact immediately
+      const d = Math.hypot(player.position.x - n.pos.x, player.position.z - n.pos.z);
+      if (d < 2.2) interactWithNode(n);
+    } else {
+      tickMsg("SYSTEM", `LOCKED: Hol dir mehr Frags/Progress, dann schaltet es frei.`);
+    }
+  }
+
+  function interactWithNode(n){
+    if(!S.unlocked[n.id]) { tickMsg("SYSTEM","Noch gesperrt."); return; }
+
+    if(n.type==="npc"){
+      openNpcDialog(n.who);
+    } else {
+      // Start mission
+      startMission(n.id);
+    }
+  }
+
+  // Auto-interact if close to nearest unlocked node (nice)
+  setInterval(() => {
+    if (elTitle.style.display !== "none") return;
+    if (missionOverlay.style.display === "flex") return;
+    if (elDialog.style.display === "block") return;
+    const near = nearestUnlockedNode();
+    if (near && near.d < 1.35){
+      const n = near.n;
+      elHudDistrict.textContent = n.district;
+      // show hint
+      tickMsg(n.type==="npc" ? "SYSTEM" : "SYSTEM", `In Reichweite: ${n.name}. Tippe den Node oder wähle ihn links.`);
+    }
+  }, 2400);
+
+  // --------- Dialog + Story ----------
+  const STORY = {
+    nyx: [
+      { key:"nyx_0", title:"PROLOG // NYX", text:"„Du willst Spaß? Gut. Dann mach’s gefährlich. Die Stadt ist ein Spielbrett – und Arasaka bewegt die Figuren.“" },
+      { key:"nyx_1", title:"FRAGMENT // NYX", text:"„Du sammelst Frags nicht für Punkte. Du sammelst Beweise. Jedes Fragment macht die Stadt… ehrlicher.“" },
+      { key:"nyx_2", title:"FRAGMENT // NYX", text:"„Wenn Heat steigt, ändert sich alles. Patrols. Preise. Story. Du willst Night City? Dann zahl den Preis.“" }
+    ],
+    ghost: [
+      { key:"ghost_0", title:"SIGNAL // GHOST", text:"„Ich bin nicht dein Freund. Ich bin dein Echo. Je mehr du siehst, desto mehr siehst du mich.“" },
+      { key:"ghost_1", title:"SIGNAL // GHOST", text:"„Arasaka sammelt Modelle von Menschen. Nicht Daten. Menschen. Du bist ein Datensatz mit Beinen.“" }
+    ],
+    agent: [
+      { key:"agent_0", title:"ARASAKA // HANDLER", text:"„Wir beobachten nur. Fürs Erste. Bring uns Ghost, dann bekommst du Frieden.“" }
+    ]
+  };
+
+  function openNpcDialog(who){
+    let name = "UNKNOWN", role = "Encrypted";
+    if (who==="nyx"){ name="NYX"; role="Fixer // Encrypted VOIP"; }
+    if (who==="ghost"){ name="GHOST"; role="Signal // Unstable"; }
+    if (who==="agent"){ name="SAKA-HANDLER"; role="Corporate Liaison"; }
+
+    elNpcName.textContent = name;
+    elNpcRole.textContent = role;
+
+    elDialog.style.display = "block";
+    elDialogText.textContent = "";
+    elChoices.innerHTML = "";
+
+    const available = (STORY[who]||[]).filter(s => !S.story.includes(s.key));
+    const line = available[0] || { key:null, title:"...", text:"„Kein neues Fragment. Mach mehr Runs.“" };
+
+    elDialogText.innerHTML = `<div style="font-weight:900;color:var(--yellow);letter-spacing:1px">${escapeHtml(line.title)}</div>
+      <div style="margin-top:6px">${escapeHtml(line.text)}</div>`;
+
+    // choices
+    addChoice("Story nehmen (+1 Trust)", () => {
+      if(line.key){
+        S.story.push(line.key);
+        if (who==="nyx") S.trust.nyx++;
+        if (who==="ghost") S.trust.ghost++;
+        rewardSmall();
+        unlockLogic();
+        saveNow();
+        hud(); renderRoute(); applySaveToWorld();
+        tickMsg(name, "Fragment gespeichert. Stadt reagiert.");
+      }else{
+        tickMsg(name, "Kein neues Fragment… noch.");
+      }
+      elDialog.style.display = "none";
+    });
+
+    addChoice("Upgrade Deal (kostet E$ 40)", () => {
+      if (S.money >= 40){
+        S.money -= 40;
+        S.frags += 1;
+        S.progress = clamp01(S.progress + 0.03);
+        S.heat = clamp(S.heat + 2, 0, 100);
+        unlockLogic();
+        saveNow();
+        hud(); renderRoute(); applySaveToWorld();
+        tickMsg(name, "Deal done. +1 Frag, aber Heat riecht’s.");
+      } else {
+        tickMsg(name, "Du bist broke. Komm wieder mit Eddies.");
+      }
+      elDialog.style.display = "none";
+    });
+
+    addChoice("Close", () => elDialog.style.display = "none");
+  }
+
+  function addChoice(text, fn){
+    const b = document.createElement('button');
+    b.className = "btn choice";
+    b.textContent = text;
+    b.onclick = fn;
+    elChoices.appendChild(b);
+  }
+
+  // --------- Mission: Frontline (Arcade) ----------
+  let activeMissionNodeId = null;
+  let M = null;
+  let mRunning = false;
+
+  function startMission(nodeId){
+    const n = nodes.find(x=>x.id===nodeId);
+    if(!n || !S.unlocked[nodeId]) return;
+
+    activeMissionNodeId = nodeId;
+    missionOverlay.style.display = "flex";
+    elDialog.style.display = "none";
+
+    initMission(n.tier || 1);
+    mRunning = true;
+    tickMsg("SYSTEM", `Mission gestartet: ${n.name}`);
+  }
+
+  function endMission(backToCity){
+    mRunning = false;
+    missionOverlay.style.display = "none";
+
+    if (backToCity){
+      saveNow();
+      unlockLogic();
+      renderRoute();
+      hud();
+      applySaveToWorld();
+      tickMsg("SYSTEM", "Zurück in die Stadt.");
+    }
+  }
+
+  function initMission(tier){
+    const W = missionCanvas.width, H = missionCanvas.height;
+    M = {
+      t: 0,
+      tier,
+      score: 0,
+      frags: 0,
+      heatGain: 0,
+      player: { x: W*0.2, y: H*0.78, vx:0, vy:0, r: 18, hp: 3 },
+      bullets: [],
+      enemies: [],
+      particles: [],
+      spawnTimer: 0,
+      move: { active:false, sx:0, sy:0, px:0, py:0 } // touch move zone (left side)
+    };
+  }
+
+  function rewardFromMission(){
+    const pay = 20 + M.score;
+    const fr = M.frags;
+    const heat = clamp(Math.floor(3 + M.tier*2 + M.heatGain), 0, 18);
+
+    S.money += pay;
+    S.frags += fr;
+    S.heat = clamp(S.heat + heat, 0, 100);
+    S.progress = clamp01(S.progress + 0.06 + M.tier*0.02);
+
+    tickMsg("SYSTEM", `Mission clear. +E$${pay} +${fr} Frags +${heat}% Heat`);
+  }
+
+  function missionFail(){
+    S.heat = clamp(S.heat + 5, 0, 100);
+    tickMsg("SYSTEM","Mission failed. Heat steigt.");
+  }
+
+  function unlockLogic(){
+    // unlocks based on progress + frags
+    if (S.progress >= 0.18 || S.frags >= 4) S.unlocked.n2 = true;
+    if (S.progress >= 0.32 || S.frags >= 7) S.unlocked.n3 = true;
+    if (S.progress >= 0.55 || S.frags >= 11) S.unlocked.n4 = true;
+    if (S.progress >= 0.72 || S.frags >= 14) S.unlocked.n5 = true;
+
+    // district
+    if (S.progress < 0.33) S.district = 0;
+    else if (S.progress < 0.66) S.district = 1;
+    else S.district = 2;
+  }
+
+  // Mission input
+  function mPointerPos(e){
+    const r = missionCanvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (missionCanvas.width / r.width),
+             y: (e.clientY - r.top) * (missionCanvas.height / r.height) };
+  }
+
+  missionCanvas.addEventListener('pointerdown', (e) => {
+    if(!mRunning) return;
+    const p = mPointerPos(e);
+
+    // left side = move stick
+    if (p.x < missionCanvas.width * 0.45){
+      M.move.active = true;
+      M.move.sx = p.x; M.move.sy = p.y;
+      M.move.px = p.x; M.move.py = p.y;
+      missionCanvas.setPointerCapture(e.pointerId);
+    } else {
+      shoot(p.x, p.y);
+    }
+  });
+
+  missionCanvas.addEventListener('pointermove', (e) => {
+    if(!mRunning) return;
+    if(!M.move.active) return;
+    const p = mPointerPos(e);
+    M.move.px = p.x; M.move.py = p.y;
+  });
+
+  missionCanvas.addEventListener('pointerup', () => {
+    if(!mRunning) return;
+    M.move.active = false;
+  });
+
+  function shoot(tx, ty){
+    const p = M.player;
+    const ang = Math.atan2(ty - p.y, tx - p.x);
+    const sp = 10.5;
+    M.bullets.push({ x:p.x, y:p.y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp, r:4 });
+  }
+
+  function spawnEnemy(){
+    const W = missionCanvas.width, H = missionCanvas.height;
+    const side = Math.random() < 0.5 ? "right" : "top";
+    let x = side==="right" ? W+30 : Math.random()*W;
+    let y = side==="right" ? Math.random()*H*0.9 : -30;
+
+    const hp = 1 + (M.tier>=2 ? (Math.random()<0.35?1:0) : 0) + (M.tier>=3 ? (Math.random()<0.2?1:0) : 0);
+    const sp = 1.2 + M.tier*0.25 + Math.random()*0.7;
+    M.enemies.push({ x,y, r: 16 + hp*3, hp, sp });
+  }
+
+  function missionUpdate(dt){
+    const W = missionCanvas.width, H = missionCanvas.height;
+    M.t += dt;
+    // move via stick
+    if (M.move.active){
+      const dx = (M.move.px - M.move.sx);
+      const dy = (M.move.py - M.move.sy);
+      const len = Math.hypot(dx,dy) || 1;
+      const ux = dx/len, uy = dy/len;
+      const power = Math.min(len/70, 1);
+      M.player.x = clamp(M.player.x + ux * 6.2 * power, 24, W*0.6);
+      M.player.y = clamp(M.player.y + uy * 6.2 * power, 24, H-24);
+    }
+
+    // spawn
+    M.spawnTimer -= dt;
+    const spawnRate = Math.max(0.35, 1.15 - M.tier*0.18 - (M.t*0.002));
+    if (M.spawnTimer <= 0){
+      M.spawnTimer = spawnRate;
+      spawnEnemy();
+    }
+
+    // bullets
+    for (const b of M.bullets){
+      b.x += b.vx; b.y += b.vy;
+    }
+    M.bullets = M.bullets.filter(b => b.x>-50 && b.x<W+50 && b.y>-50 && b.y<H+50);
+
+    // enemies track player
+    for (const e of M.enemies){
+      const ang = Math.atan2(M.player.y - e.y, M.player.x - e.x);
+      e.x += Math.cos(ang)*e.sp;
+      e.y += Math.sin(ang)*e.sp;
+    }
+
+    // collisions bullet/enemy
+    for (const e of M.enemies){
+      for (const b of M.bullets){
+        if (dist(e.x,e.y,b.x,b.y) < e.r + b.r){
+          e.hp -= 1;
+          b.x = 1e9; // delete
+          M.score += 1;
+          burst(e.x,e.y);
+          if (e.hp <= 0){
+            // rewards drop chance
+            if (Math.random() < 0.38 + M.tier*0.06){
+              M.frags += 1;
+              burst(e.x,e.y, true);
+            }
+            e.x = 1e9;
+          }
+          break;
+        }
+      }
+    }
+    M.bullets = M.bullets.filter(b => b.x < 1e8);
+    M.enemies = M.enemies.filter(e => e.x < 1e8);
+
+    // enemy hits player
+    for (const e of M.enemies){
+      if (dist(e.x,e.y,M.player.x,M.player.y) < e.r + M.player.r){
+        e.x = 1e9;
+        M.player.hp -= 1;
+        M.heatGain += 1.5;
+        burst(M.player.x,M.player.y);
+        if (M.player.hp <= 0){
+          missionFail();
+          endMission(true);
+          return;
+        }
+      }
+    }
+    M.enemies = M.enemies.filter(e => e.x < 1e8);
+
+    // passive heat
+    M.heatGain += dt*0.10*M.tier;
+
+    // win condition: survive time
+    const survive = 18 + M.tier*6;
+    if (M.t >= survive){
+      rewardFromMission();
+      endMission(true);
+      return;
+    }
+  }
+
+  function burst(x,y,frag=false){
+    for(let i=0;i<10;i++){
+      M.particles.push({
+        x,y,
+        vx:(Math.random()-0.5)*6,
+        vy:(Math.random()-0.5)*6,
+        life: 0.35 + Math.random()*0.35,
+        frag
+      });
+    }
+  }
+
+  function missionDraw(){
+    const W = missionCanvas.width, H = missionCanvas.height;
+
+    // background gradient
+    const g = mctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0, "rgba(0,243,255,0.10)");
+    g.addColorStop(1, "rgba(255,0,124,0.08)");
+    mctx.fillStyle = g;
+    mctx.fillRect(0,0,W,H);
+
+    // arena bounds
+    mctx.strokeStyle = "rgba(0,243,255,0.25)";
+    mctx.lineWidth = 2;
+    mctx.strokeRect(14,14,W-28,H-28);
+
+    // player
+    mctx.beginPath();
+    mctx.fillStyle = "rgba(0,243,255,0.85)";
+    mctx.arc(M.player.x, M.player.y, M.player.r, 0, Math.PI*2);
+    mctx.fill();
+
+    // hp
+    mctx.fillStyle = "rgba(255,255,255,0.85)";
+    mctx.font = "16px monospace";
+    mctx.fillText("HP: "+M.player.hp, 22, 30);
+
+    // timer
+    const survive = 18 + M.tier*6;
+    mctx.fillStyle = "rgba(252,238,10,0.85)";
+    mctx.fillText("T: "+Math.max(0,(survive - M.t)).toFixed(1)+"s", 120, 30);
+
+    // score/frags
+    mctx.fillStyle = "rgba(255,0,124,0.9)";
+    mctx.fillText("SCORE: "+M.score+"  FRAGS: "+M.frags, 240, 30);
+
+    // bullets
+    mctx.fillStyle = "rgba(0,243,255,0.9)";
+    for (const b of M.bullets){
+      mctx.beginPath();
+      mctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+      mctx.fill();
+    }
+
+    // enemies
+    for (const e of M.enemies){
+      mctx.beginPath();
+      mctx.fillStyle = e.hp>=3 ? "rgba(255,0,124,0.85)" : "rgba(255,255,255,0.75)";
+      mctx.arc(e.x,e.y,e.r,0,Math.PI*2);
+      mctx.fill();
+
+      // hp ring
+      mctx.strokeStyle = "rgba(0,0,0,0.4)";
+      mctx.lineWidth = 3;
+      mctx.beginPath();
+      mctx.arc(e.x,e.y,e.r+4,0,Math.PI*2);
+      mctx.stroke();
+    }
+
+    // particles
+    for (const p of M.particles){
+      mctx.fillStyle = p.frag ? "rgba(252,238,10,0.9)" : "rgba(0,243,255,0.7)";
+      mctx.fillRect(p.x, p.y, 2, 2);
+    }
+
+    // move zone hint
+    mctx.fillStyle = "rgba(255,255,255,0.10)";
+    mctx.fillRect(0,0,W*0.45,H);
+    mctx.fillStyle = "rgba(255,255,255,0.35)";
+    mctx.font = "14px monospace";
+    mctx.fillText("MOVE ZONE", 18, H-18);
+  }
+
+  function missionTick(ts){
+    if(!mRunning){ requestAnimationFrame(missionTick); return; }
+    const now = ts/1000;
+    missionTick.last ??= now;
+    const dt = Math.min(0.033, now - missionTick.last);
+    missionTick.last = now;
+
+    // update particles
+    for (const p of M.particles){
+      p.x += p.vx; p.y += p.vy;
+      p.life -= dt;
+    }
+    M.particles = M.particles.filter(p => p.life > 0);
+
+    missionUpdate(dt);
+    missionDraw();
+    requestAnimationFrame(missionTick);
+  }
+  requestAnimationFrame(missionTick);
+
+  // --------- Progress visual: day -> sunset ----------
+  function applyProgressLighting(){
+    // 0..1
+    const t = S.progress;
+    const fog = new THREE.Color().setHSL(0.60 - t*0.10, 0.35 + t*0.25, 0.06 + t*0.03);
+    scene.fog.color.copy(fog);
+    renderer.setClearColor(fog, 1);
+
+    // sky tint via hemi
+    hemi.intensity = 0.95 - t*0.25;
+    dir.intensity = 0.70 - t*0.15;
+
+    // player tint shift
+    const mat = player.material;
+    mat.color.setHex(t < 0.6 ? 0x00f3ff : 0xff007c);
+  }
+
+  function applySaveToWorld(){
+    player.position.x = S.player.x || 0;
+    player.position.z = S.player.z || 0;
+    focusPlayer();
+
+    buildCity();
+    rebuildNodes();
+    applyProgressLighting();
+  }
+
+  // --------- Main loop ----------
+  let last = performance.now();
+  function loop(){
+    const now = performance.now();
+    const dt = Math.min(0.05, (now-last)/1000);
+    last = now;
+
+    // node ring pulse
+    for(const n of nodes){
+      const m = nodeMeshes.get(n.id);
+      if(!m) continue;
+      const unlocked = !!S.unlocked[n.id];
+      const pulse = 1 + Math.sin(now*0.003 + (n.type==="npc"?1.2:0))*0.06;
+      m.ring.scale.setScalar(pulse);
+      m.ring.material.opacity = unlocked ? (0.38 + Math.sin(now*0.004)*0.08) : 0.15;
+    }
+
+    // camera smoothing
+    camera.position.x += (camTarget.x - camera.position.x) * 0.06;
+    camera.position.z += ((camTarget.z + 14) - camera.position.z) * 0.06;
+    camera.lookAt(camTarget.x, 0.8, camTarget.z);
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+
+  // Resize
+  addEventListener('resize', () => {
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  // --------- Save / Load ----------
+  function saveNow(){
+    try{ localStorage.setItem("NEON_ALLEY_SAVE", JSON.stringify(S)); }catch(e){}
+  }
+  function loadSave(){
+    try{
+      const raw = localStorage.getItem("NEON_ALLEY_SAVE");
+      if(!raw) return null;
+      return JSON.parse(raw);
+    }catch(e){ return null; }
+  }
+
+  // --------- HUD ----------
+  function hud(){
+    const districts = ["Sector-07", "Market Sprawl", "Arasaka Edge"];
+    elHudDistrict.textContent = districts[S.district] || "Sector-07";
+    elHudMoney.textContent = "E$ " + (S.money|0);
+    elHudFrags.textContent = "" + (S.frags|0);
+    elHudHeat.textContent = (S.heat|0) + "%";
+    elHudTime.textContent = (S.progress < 0.35) ? "DAY" : (S.progress < 0.7 ? "SUNSET" : "NIGHT");
+  }
+
+  function rewardSmall(){
+    S.money += 10;
+    S.progress = clamp01(S.progress + 0.02);
+  }
+
+  function tickMsg(who, msg){
+    elTicker.innerHTML = `<b>${escapeHtml(who)}:</b> ${escapeHtml(msg)}`;
+  }
+
+  // --------- Helpers ----------
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function clamp01(v){ return clamp(v,0,1); }
+  function dist(x1,y1,x2,y2){ return Math.hypot(x1-x2,y1-y2); }
+  function escapeHtml(s){ return (""+s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  // --------- Boot ----------
+  unlockLogic();
+  applySaveToWorld();
+  renderRoute();
+  hud();
+  focusPlayer();
+  loop();
+
+  // quick interaction: double tap on selected node -> interact
+  let lastSelectTap = 0;
+  elRouteList.addEventListener('click', () => {
+    const now = performance.now();
+    if (now - lastSelectTap < 420){
+      const n = nodes.find(x=>x.id===selectedNodeId);
+      if (n) interactWithNode(n);
+    }
+    lastSelectTap = now;
+  });
+</script>
+</body>
+</html>
