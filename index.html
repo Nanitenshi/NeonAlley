@@ -1,503 +1,520 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
-<meta http-equiv="Pragma" content="no-cache" />
-<meta http-equiv="Expires" content="0" />
-<title>NEON ALLEY // FRONTLINE ARCADE</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#05070a" />
+  <title>NEON ALLEY — Hybrid Overworld Prototype</title>
 
-<!-- PWA -->
-<link rel="manifest" href="./manifest.webmanifest">
-<meta name="theme-color" content="#00f3ff">
+  <!-- PWA optional: wenn du manifest/webmanifest hast -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <style>
+    :root{
+      --bg:#05070a;
+      --panel:rgba(8,12,18,.86);
+      --cyan:#00f3ff;
+      --pink:#ff007c;
+      --yellow:#fcee0a;
+      --muted:#8aa0b3;
+      --line:rgba(0,243,255,.18);
+      --shadowC:0 0 18px rgba(0,243,255,.25);
+      --shadowP:0 0 18px rgba(255,0,124,.2);
+      --font: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;height:100%;background:var(--bg);color:#fff;font-family:var(--font);overflow:hidden}
+    #app{position:relative;height:100%}
+    canvas{position:absolute;inset:0;display:block}
+    #threeCanvas{z-index:1; touch-action:none;} /* Canvas muss Touch bekommen für Raycast/Movement */
+    #ui{position:absolute;inset:0;z-index:10;pointer-events:none;} /* Panels setzen pointer-events:auto */
 
-<style>
-  :root{
-    --bg:#04060a;
-    --cyan:#00f3ff;
-    --pink:#ff007c;
-    --yellow:#fcee0a;
-    --orange:#ff8a00;
-    --muted:#9fb3c2;
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;color:#fff}
-  canvas{position:fixed;inset:0;display:block}
-  #fx{pointer-events:none}
-  #scan{
-    position:fixed;inset:0;pointer-events:none;z-index:60;
-    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.03) 0 1px, transparent 2px 4px);
-    opacity:.30;mix-blend-mode:screen;
-  }
+    /* Scanlines / glow */
+    #ui::before{
+      content:"";position:absolute;inset:0;pointer-events:none;
+      background:repeating-linear-gradient(to bottom, rgba(255,255,255,.02) 0 1px, transparent 2px 4px);
+      opacity:.28;mix-blend-mode:screen;
+    }
 
-  #ui{
-    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    background:radial-gradient(circle at 50% 35%, rgba(0,243,255,.08), transparent 45%), rgba(0,0,0,.65);
-    z-index:50;
-    pointer-events:auto;
-  }
-  .panel{
-    width:min(680px,92vw);
-    padding:18px;
-    border:1px solid rgba(0,243,255,.35);
-    background:linear-gradient(180deg, rgba(0,10,18,.75), rgba(0,0,0,.60));
-    box-shadow:0 0 22px rgba(0,243,255,.18);
-    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
-  }
-  h1{margin:0 0 6px 0;letter-spacing:6px;color:var(--cyan);text-shadow:0 0 16px rgba(0,243,255,.6)}
-  .sub{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:2px;margin-bottom:12px}
-  .btn{
-    width:100%;padding:14px 12px;margin-top:10px;
-    border:1px solid rgba(0,243,255,.7);background:rgba(0,0,0,.22);color:var(--cyan);
-    font-weight:900;letter-spacing:2px;text-transform:uppercase;
-    touch-action:manipulation;
-    cursor:pointer;
-  }
-  .btn:active{background:rgba(0,243,255,.18)}
+    .panel{
+      background:linear-gradient(180deg, rgba(10,16,24,.92), rgba(5,9,14,.92));
+      border:1px solid rgba(0,243,255,.28);
+      box-shadow:var(--shadowC);
+      clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+    }
+    .panelPink{
+      border-color:rgba(255,0,124,.28);
+      box-shadow:var(--shadowP);
+    }
+    .btn{
+      pointer-events:auto;
+      border:1px solid rgba(0,243,255,.55);
+      color:var(--cyan);
+      background:rgba(0,0,0,.25);
+      padding:10px 12px;
+      font-weight:800;
+      font-family:var(--font);
+      text-transform:uppercase;
+      letter-spacing:1px;
+      cursor:pointer;
+    }
+    .btn:hover,.btn:active{background:rgba(0,243,255,.14)}
+    .btn.pink{border-color:rgba(255,0,124,.6);color:var(--pink)}
+    .btn.yellow{border-color:rgba(252,238,10,.6);color:var(--yellow)}
+    .muted{color:var(--muted)}
+    .tiny{font-size:11px}
 
-  #hud{
-    position:fixed;left:10px;right:10px;top:10px;z-index:40;
-    display:none;gap:8px;flex-wrap:wrap;pointer-events:none;
-  }
-  .box{
-    flex:1;min-width:150px;padding:8px 10px;border:1px solid rgba(0,243,255,.22);
-    background:rgba(0,0,0,.35);
-  }
-  .lab{font-size:10px;color:var(--muted);letter-spacing:1px}
-  .val{font-size:13px;font-weight:900}
+    /* Title */
+    #title{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      pointer-events:auto;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(255,180,90,.08), transparent 42%),
+        linear-gradient(180deg, rgba(9,14,22,.55), rgba(3,4,7,.92));
+    }
+    #card{width:min(620px,92vw);padding:16px}
+    #logo{font-size:34px;font-weight:900;letter-spacing:6px;color:var(--cyan);text-shadow:0 0 18px rgba(0,243,255,.55)}
+    #sub{color:var(--pink);font-size:12px;letter-spacing:2px;margin-top:4px}
+    #desc{margin-top:12px;font-size:12px;line-height:1.55;color:#cfe0eb}
+    #actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+    #actions .btn{flex:1;min-width:160px}
 
-  #bar{
-    position:fixed;left:10px;right:10px;bottom:10px;z-index:45;
-    display:none;gap:8px;flex-wrap:wrap;
-    pointer-events:auto;
-  }
-  .skill{
-    flex:1;min-width:150px;
-    padding:12px 10px;border:1px solid rgba(255,255,255,.12);
-    background:rgba(0,0,0,.40);color:#fff;font-weight:900;letter-spacing:1px;
-    touch-action:manipulation;
-    cursor:pointer;
-  }
-  .skill.cyan{border-color:rgba(0,243,255,.55);color:var(--cyan)}
-  .skill.pink{border-color:rgba(255,0,124,.55);color:var(--pink)}
-  .skill.yellow{border-color:rgba(252,238,10,.55);color:var(--yellow)}
-  .skill:active{transform:scale(.99)}
+    /* HUD */
+    #hudTop{
+      position:absolute;top:8px;left:8px;right:8px;
+      display:flex;gap:8px;align-items:stretch;
+      pointer-events:none;
+    }
+    .hudBox{
+      pointer-events:none;
+      background:linear-gradient(180deg, rgba(8,14,20,.9), rgba(4,7,11,.9));
+      border:1px solid rgba(0,243,255,.22);
+      box-shadow:var(--shadowC);
+      padding:8px 10px;
+      min-width:0;
+    }
+    .hudBox .k{font-size:10px;color:var(--muted);letter-spacing:1px}
+    .hudBox .v{font-size:13px;font-weight:900}
 
-  .hint{
-    position:fixed;left:10px;bottom:68px;z-index:46;
-    font-size:11px;color:rgba(220,235,245,.85);
-    background:rgba(0,0,0,.40);border:1px solid rgba(255,255,255,.08);
-    padding:8px 10px;display:none;
-    pointer-events:none;
-  }
-</style>
+    /* Left panel */
+    #left{
+      position:absolute;left:10px;top:56px;bottom:10px;width:min(360px,90vw);
+      display:flex;flex-direction:column;gap:8px;
+      pointer-events:none;
+    }
+    #route, #dialog, #missionPanel{
+      pointer-events:auto;
+      padding:12px;
+    }
+    #routeTitle{font-weight:900;letter-spacing:1px;color:var(--cyan)}
+    #routeList{margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:34vh;overflow:auto}
+    .nodeCard{
+      border:1px solid rgba(0,243,255,.18);
+      background:rgba(255,255,255,.02);
+      padding:8px;
+      display:grid;grid-template-columns:1fr auto;gap:8px;
+      align-items:center;
+    }
+    .nodeCard.active{border-color:rgba(255,0,124,.35)}
+    .badge{font-size:10px;padding:2px 6px;border-radius:999px;border:1px solid rgba(255,255,255,.16)}
+    .badge.mission{border-color:rgba(0,243,255,.35);color:var(--cyan)}
+    .badge.npc{border-color:rgba(255,0,124,.35);color:var(--pink)}
+    .badge.locked{border-color:rgba(255,255,255,.1);color:#777}
+
+    /* Dialog */
+    #dialog{display:none}
+    #dialogHead{display:flex;align-items:center;gap:10px}
+    #holo{
+      width:48px;height:48px;border:1px solid rgba(0,243,255,.35);
+      background:
+        radial-gradient(circle at 65% 30%, rgba(255,255,255,.5), transparent 35%),
+        radial-gradient(circle at 50% 50%, rgba(0,243,255,.16), transparent 70%),
+        linear-gradient(180deg, rgba(255,0,124,.18), rgba(0,0,0,.2));
+      position:relative;overflow:hidden;
+    }
+    #holo::after{
+      content:"";position:absolute;inset:0;
+      background:repeating-linear-gradient(to bottom, rgba(255,255,255,.07) 0 1px, transparent 2px 4px);
+      opacity:.5;animation:scan 2s linear infinite;
+    }
+    @keyframes scan{from{transform:translateY(-100%)}to{transform:translateY(100%)}}
+    #npcName{font-weight:900;color:var(--pink);letter-spacing:1px}
+    #npcRole{font-size:10px;color:var(--muted)}
+    #dialogText{
+      margin-top:10px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(0,0,0,.15);
+      padding:10px;
+      font-size:12px;line-height:1.5;color:#d7e5ef;
+      max-height:18vh;overflow:auto;
+    }
+    #choices{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+    .choice{pointer-events:auto}
+    .choice.btn{text-align:left;font-size:12px}
+
+    /* Mission overlay */
+    #missionOverlay{
+      position:absolute;inset:0;display:none;
+      z-index:20;
+      background:rgba(0,0,0,.68);
+      pointer-events:auto;
+      align-items:center;justify-content:center;
+    }
+    #missionCard{width:min(620px,92vw);padding:14px}
+    #missionCanvas{
+      width:100%;height:52vh;max-height:520px;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(0,243,255,.25);
+      display:block;
+      touch-action:none;
+    }
+    #missionRow{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+    #missionRow .btn{flex:1;min-width:160px}
+
+    /* Bottom hint */
+    #bottom{
+      position:absolute;left:10px;right:10px;bottom:10px;
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+      pointer-events:none;
+    }
+    #ticker{
+      pointer-events:auto;
+      flex:1;min-width:220px;padding:10px;
+      border:1px solid rgba(255,0,124,.28);
+      background:rgba(255,0,124,.04);
+      box-shadow:var(--shadowP);
+      font-size:11px;color:#ffd7ea;
+    }
+    #ticker b{color:var(--pink)}
+    .small{padding:8px 10px;font-size:11px}
+
+    /* Mobile layout */
+    @media (max-width:920px){
+      #left{left:8px;right:8px;width:auto;top:auto;bottom:62px;max-height:44vh}
+      #routeList{max-height:18vh}
+    }
+  </style>
 </head>
+
 <body>
+<div id="app">
+  <canvas id="threeCanvas"></canvas>
 
-<canvas id="c"></canvas>
-<canvas id="fx"></canvas>
-<div id="scan"></div>
-
-<div id="hud">
-  <div class="box"><div class="lab">MODE</div><div class="val">FRONTLINE // ARCADE</div></div>
-  <div class="box"><div class="lab">FRONT</div><div class="val" id="hudFront">50%</div></div>
-  <div class="box"><div class="lab">TIME</div><div class="val" id="hudTime">70s</div></div>
-  <div class="box"><div class="lab">RAM</div><div class="val" id="hudRam">0</div></div>
-</div>
-
-<div id="bar">
-  <button class="skill cyan" id="btnPulse" type="button">PULSE (Tap)</button>
-  <button class="skill yellow" id="btnBeam" type="button">HACK BEAM (Hold)</button>
-  <button class="skill pink" id="btnEMP" type="button">EMP (Ult)</button>
-  <button class="skill" id="btnQuit" type="button">QUIT</button>
-</div>
-
-<div class="hint" id="hint">Tap = Pulse. Hold & drag = Hack Beam. EMP = Panic Button.</div>
-
-<div id="ui">
-  <div class="panel">
-    <h1>NEON ALLEY</h1>
-    <div class="sub">BREACH VERWORFEN // ARCADE FRONTLINE (B)</div>
-    <div style="font-size:12px;line-height:1.45;color:rgba(230,240,250,.92)">
-      <b>Push die Front</b> bis Arasaka rechts fällt. Keine Build-Orgien – du spielst aktiv:
-      <br>• <b>Pulse</b> (Tap) räumt Gegner an der Front.
-      <br>• <b>Hack Beam</b> (halten/ziehen) schmilzt Gegner & „zieht“ die Linie kurz zu dir.
-      <br>• <b>EMP</b> ist dein Ult: Reset gegnerischer Push.
+  <div id="ui">
+    <!-- Title -->
+    <div id="title">
+      <div id="card" class="panel">
+        <div id="logo">NEON ALLEY</div>
+        <div id="sub">HYBRID OVERWORLD // NPCs // FRONTLINE MISSIONS</div>
+        <div id="desc">
+          Du startest „clean“ am Tag. Je mehr Missionen du ziehst, desto dreckiger kippt die Stadt Richtung Sunset.
+          Klick/Tap auf Nodes für Missionen, geh zu NPC-Hotspots für Story-Fragmente + Upgrades.
+          <div class="tiny muted" style="margin-top:10px">
+            Steuerung: <b>Drag</b> auf der Stadt = bewegen · <b>Tap</b> auf Kugeln = interagieren ·
+            <b>Mission</b> startet Arcade „Frontline“ (kein Breach).
+          </div>
+        </div>
+        <div id="actions">
+          <button class="btn yellow" id="btnStart">Enter Night City</button>
+          <button class="btn" id="btnLoad">Load Save</button>
+          <button class="btn pink" id="btnReset">Reset</button>
+        </div>
+      </div>
     </div>
-    <button class="btn" id="btnStart" type="button">ENTER NIGHT CITY</button>
-    <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.65)">
-      Tipp: Spiele aggressiv. Pulse off-cooldown, Beam nur wenn Arasaka drückt.
+
+    <!-- HUD -->
+    <div id="hudTop">
+      <div class="hudBox" style="flex:1.2">
+        <div class="k">DISTRICT</div>
+        <div class="v" id="hudDistrict">Sector-07</div>
+      </div>
+      <div class="hudBox">
+        <div class="k">EDDIES</div>
+        <div class="v" id="hudMoney">E$ 0</div>
+      </div>
+      <div class="hudBox">
+        <div class="k">FRAGS</div>
+        <div class="v" id="hudFrags">0</div>
+      </div>
+      <div class="hudBox">
+        <div class="k">HEAT</div>
+        <div class="v" id="hudHeat">0%</div>
+      </div>
+      <div class="hudBox">
+        <div class="k">TIME</div>
+        <div class="v" id="hudTime">DAY</div>
+      </div>
     </div>
+
+    <!-- Left panel -->
+    <div id="left">
+      <div id="route" class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div id="routeTitle">OVERWORLD // ROUTE NODES</div>
+            <div class="tiny muted">Tippe Nodes in 3D oder wähle hier.</div>
+          </div>
+          <button class="btn small" id="btnSave">Save</button>
+        </div>
+        <div class="tiny" id="routeTag" style="margin-top:8px;border-left:2px solid rgba(255,0,124,.35);padding-left:8px;color:#c8d7e2">
+          Früher Tag. Die Stadt ist zu sauber, um echt zu sein.
+        </div>
+        <div id="routeList"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn small yellow" id="btnFocusPlayer">Focus</button>
+          <button class="btn small" id="btnExport">Export</button>
+          <button class="btn small" id="btnImport">Import</button>
+        </div>
+        <textarea id="io" class="panel" style="margin-top:10px;width:100%;height:66px;padding:8px;border:1px solid rgba(0,243,255,.18);background:rgba(0,0,0,.25);color:#d8faff;pointer-events:auto" placeholder="Save JSON"></textarea>
+      </div>
+
+      <div id="dialog" class="panel panelPink">
+        <div id="dialogHead">
+          <div id="holo"></div>
+          <div>
+            <div id="npcName">NYX</div>
+            <div id="npcRole">Fixer // Encrypted VOIP</div>
+          </div>
+          <div style="margin-left:auto">
+            <button class="btn small" id="btnCloseDialog">X</button>
+          </div>
+        </div>
+        <div id="dialogText"></div>
+        <div id="choices"></div>
+      </div>
+    </div>
+
+    <!-- Mission overlay -->
+    <div id="missionOverlay">
+      <div id="missionCard" class="panel panelPink">
+        <div style="font-weight:900;letter-spacing:2px;color:var(--pink)">FRONTLINE // ARENA</div>
+        <div class="tiny muted" id="missionHint" style="margin-top:6px">
+          Tippe um zu schießen. Halte/drag links um zu bewegen. Sammle Frags, bevor Heat dich einholt.
+        </div>
+        <canvas id="missionCanvas" width="900" height="520"></canvas>
+        <div id="missionRow">
+          <button class="btn yellow" id="btnMissionExit">Back to City</button>
+          <button class="btn" id="btnMissionRetry">Retry</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom -->
+    <div id="bottom">
+      <div id="ticker" class="panelPink">
+        <b>NYX:</b> “Choom. Overworld first. Dann Frontline. Und wenn Arasaka aufwacht… rennen wir nicht. Wir <i>lenken</i>.”
+      </div>
+      <button class="btn small" id="btnTalkNyx" style="pointer-events:auto">Call Nyx</button>
+      <button class="btn small pink" id="btnTalkGhost" style="pointer-events:auto">Ping Ghost</button>
+    </div>
+
   </div>
 </div>
 
-<script>
-/* PWA Service Worker */
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(()=>{});
-}
+<script type="module">
+  import * as THREE from './three.module.js';
 
-/* Canvas */
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-const fx = document.getElementById("fx");
-const fctx = fx.getContext("2d");
+  // --------- State ----------
+  const DEFAULT_SAVE = {
+    v: 1,
+    money: 0,
+    frags: 0,
+    heat: 0,         // 0..100
+    progress: 0,     // 0..1
+    district: 0,
+    unlocked: { n0:true, n1:true, n2:false, n3:false, n4:false, n5:false },
+    story: [],
+    trust: { nyx: 0, ghost: 0 },
+    player: { x: 0, z: 0 },
+    seed: Math.floor(Math.random()*1e9)
+  };
 
-/* UI */
-const ui = document.getElementById("ui");
-const hud = document.getElementById("hud");
-const bar = document.getElementById("bar");
-const hint = document.getElementById("hint");
+  let S = loadSave() || structuredClone(DEFAULT_SAVE);
 
-const hudFront = document.getElementById("hudFront");
-const hudTime  = document.getElementById("hudTime");
-const hudRam   = document.getElementById("hudRam");
+  // --------- UI refs ----------
+  const elTitle = document.getElementById('title');
+  const elHudDistrict = document.getElementById('hudDistrict');
+  const elHudMoney = document.getElementById('hudMoney');
+  const elHudFrags = document.getElementById('hudFrags');
+  const elHudHeat = document.getElementById('hudHeat');
+  const elHudTime = document.getElementById('hudTime');
+  const elRouteList = document.getElementById('routeList');
+  const elRouteTag = document.getElementById('routeTag');
+  const elTicker = document.getElementById('ticker');
+  const elIO = document.getElementById('io');
 
-const btnStart = document.getElementById("btnStart");
-const btnPulse = document.getElementById("btnPulse");
-const btnBeam  = document.getElementById("btnBeam");
-const btnEMP   = document.getElementById("btnEMP");
-const btnQuit  = document.getElementById("btnQuit");
+  const elDialog = document.getElementById('dialog');
+  const elDialogText = document.getElementById('dialogText');
+  const elChoices = document.getElementById('choices');
+  const elNpcName = document.getElementById('npcName');
+  const elNpcRole = document.getElementById('npcRole');
 
-function resize(){
-  canvas.width = fx.width = innerWidth;
-  canvas.height = fx.height = innerHeight;
-}
-addEventListener("resize", resize);
-resize();
+  const missionOverlay = document.getElementById('missionOverlay');
+  const missionCanvas = document.getElementById('missionCanvas');
+  const mctx = missionCanvas.getContext('2d');
 
-/* Helpers */
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const rand=(a,b)=>a+Math.random()*(b-a);
+  // --------- Buttons ----------
+  document.getElementById('btnStart').onclick = () => {
+    elTitle.style.display = 'none';
+    tickMsg("NYX", "Du bist drin. Beweg dich. Tippe Nodes. Wir erzählen die Wahrheit in Stücken.");
+  };
+  document.getElementById('btnLoad').onclick = () => {
+    const loaded = loadSave();
+    if (loaded) { S = loaded; applySaveToWorld(); renderRoute(); hud(); tickMsg("SYSTEM","Save geladen."); }
+    else tickMsg("SYSTEM","Kein Save gefunden.");
+  };
+  document.getElementById('btnReset').onclick = () => {
+    S = structuredClone(DEFAULT_SAVE);
+    saveNow();
+    applySaveToWorld();
+    renderRoute();
+    hud();
+    tickMsg("SYSTEM","Reset done.");
+  };
+  document.getElementById('btnSave').onclick = () => { saveNow(); tickMsg("SYSTEM","Saved."); };
+  document.getElementById('btnExport').onclick = () => { elIO.value = JSON.stringify(S); elIO.focus(); tickMsg("SYSTEM","Export in Textfeld."); };
+  document.getElementById('btnImport').onclick = () => {
+    try{
+      const obj = JSON.parse(elIO.value.trim());
+      S = obj;
+      saveNow();
+      applySaveToWorld();
+      renderRoute();
+      hud();
+      tickMsg("SYSTEM","Import OK.");
+    }catch(e){
+      tickMsg("SYSTEM","Import failed: JSON ungültig.");
+    }
+  };
+  document.getElementById('btnFocusPlayer').onclick = () => focusPlayer();
 
-/* Game State */
-const G = {
-  running:false,
-  w:()=>canvas.width,
-  h:()=>canvas.height,
-  front:0.50,
-  timeLeft:70,
-  progress:0,
-  ram:50,
-  ramMax:100,
-  ramRegen:26,
-  cdPulse:0,
-  cdEmp:0,
-  mode:"pulse",
-  unitsP:[],
-  unitsE:[],
-  spawnT:0,
-  tick:0,
-  beaming:false,
-  beamX:0,
-  beamY:0,
-};
+  document.getElementById('btnCloseDialog').onclick = () => elDialog.style.display = 'none';
+  document.getElementById('btnTalkNyx').onclick = () => openNpcDialog("nyx");
+  document.getElementById('btnTalkGhost').onclick = () => openNpcDialog("ghost");
 
-function resetRun(){
-  G.front = 0.50;
-  G.timeLeft = 70;
-  G.progress = 0;
-  G.ram = 50;
-  G.cdPulse = 0;
-  G.cdEmp = 0;
-  G.unitsP.length = 0;
-  G.unitsE.length = 0;
-  G.spawnT = 0;
-  G.tick = 0;
-  G.beaming = false;
-}
+  document.getElementById('btnMissionExit').onclick = () => endMission(true);
+  document.getElementById('btnMissionRetry').onclick = () => startMission(activeMissionNodeId);
 
-function spawn(side){
-  const isP = side==="P";
-  const x = isP ? 40 : (G.w()-40);
-  const y = 120 + Math.random()*(G.h()-240);
-  const speed = isP ? rand(70,110) : rand(75,130);
-  const hp = isP ? rand(10,16) : rand(12,18);
-  const power = isP ? rand(1.0,1.6) : rand(1.0,1.9);
-  (isP?G.unitsP:G.unitsE).push({x,y,speed,hp,power,r:10});
-}
-
-/* FX rings */
-const rings=[];
-function burstFX(x,y,r,color){
-  rings.push({x,y,r,t:0,color});
-}
-function drawRings(dt){
-  for(const ring of rings) ring.t += dt;
-  for(let i=rings.length-1;i>=0;i--) if(rings[i].t>0.5) rings.splice(i,1);
-  for(const ring of rings){
-    const p = ring.t/0.5;
-    const rr = ring.r*(0.3+p*0.9);
-    ctx.globalAlpha = 0.35*(1-p);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = ring.color==="pink" ? "rgba(255,0,124,0.95)" : "rgba(0,243,255,0.95)";
-    ctx.beginPath(); ctx.arc(ring.x, ring.y, rr, 0, Math.PI*2); ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-}
-
-/* Skills */
-function doPulse(x,y){
-  if(G.cdPulse>0) return;
-  const cost = 12;
-  if(G.ram < cost) return;
-  G.ram -= cost;
-  G.cdPulse = 0.55;
-
-  const R = 130;
-  for(const u of G.unitsE){
-    const d = Math.hypot(u.x-x, u.y-y);
-    if(d < R) u.hp -= (3.8 * (1 - d/R));
-  }
-  G.front = clamp(G.front + 0.010, 0.06, 0.94);
-  burstFX(x,y,R,"cyan");
-}
-
-function doEMP(){
-  if(G.cdEmp>0) return;
-  const cost = 70;
-  if(G.ram < cost) return;
-  G.ram -= cost;
-  G.cdEmp = 18;
-
-  const frontX = G.front * G.w();
-  G.unitsE = G.unitsE.filter(u => Math.abs(u.x-frontX) > 380);
-  G.front = clamp(G.front + 0.04, 0.06, 0.94);
-  burstFX(frontX, G.h()*0.5, 300, "pink");
-}
-
-function beamApply(dt){
-  const costPerSec = 28;
-  const need = costPerSec * dt;
-  if(G.ram < need){ G.beaming=false; return; }
-  G.ram -= need;
-
-  const frontX = G.front * G.w();
-  const x = G.beamX, y = G.beamY;
-
-  const R = 220;
-  for(const u of G.unitsE){
-    const d = Math.hypot(u.x-x, u.y-y);
-    if(d < R) u.hp -= (6.2*dt) * (1 - d/R);
-  }
-  if(Math.abs(x-frontX) < 180) G.front = clamp(G.front + (0.020*dt), 0.06, 0.94);
-}
-
-/* Buttons */
-btnPulse.addEventListener("click", ()=>G.mode="pulse");
-btnBeam.addEventListener("click",  ()=>G.mode="beam");
-btnEMP.addEventListener("click", doEMP);
-btnQuit.addEventListener("click", stop);
-
-/* Input */
-let pointerDown=false;
-canvas.addEventListener("pointerdown",(e)=>{
-  if(!G.running) return;
-  pointerDown=true;
-  if(G.mode==="pulse") doPulse(e.clientX, e.clientY);
-  else { G.beaming=true; G.beamX=e.clientX; G.beamY=e.clientY; }
-},{passive:true});
-
-addEventListener("pointermove",(e)=>{
-  if(!G.running || !pointerDown) return;
-  if(G.mode==="beam"){ G.beamX=e.clientX; G.beamY=e.clientY; }
-},{passive:true});
-
-addEventListener("pointerup",()=>{
-  pointerDown=false;
-  G.beaming=false;
-},{passive:true});
-
-/* Draw */
-function drawFront(){
-  const x0 = G.front * G.w();
-  const step = 22;
-
-  const gradL = ctx.createLinearGradient(0,0,x0,0);
-  gradL.addColorStop(0, "rgba(0,243,255,0.12)");
-  gradL.addColorStop(1, "rgba(0,243,255,0.02)");
-  ctx.fillStyle = gradL; ctx.fillRect(0,0,x0,G.h());
-
-  const gradR = ctx.createLinearGradient(x0,0,G.w(),0);
-  gradR.addColorStop(0, "rgba(255,138,0,0.03)");
-  gradR.addColorStop(1, "rgba(255,0,124,0.10)");
-  ctx.fillStyle = gradR; ctx.fillRect(x0,0,G.w()-x0,G.h());
-
-  ctx.beginPath(); ctx.moveTo(x0,0);
-  let y=0, dir=1;
-  while(y < G.h()){
-    const n = Math.sin((y*0.03)+G.tick*0.9)*10;
-    const j = (dir*10)+n;
-    ctx.lineTo(x0+j, y+step);
-    y += step; dir *= -1;
-  }
-  ctx.shadowBlur=18; ctx.shadowColor="rgba(255,255,255,0.55)";
-  ctx.strokeStyle="rgba(255,255,255,0.7)"; ctx.lineWidth=3; ctx.stroke();
-  ctx.shadowBlur=0;
-
-  ctx.fillStyle="rgba(0,243,255,0.85)"; ctx.fillRect(18, G.h()*0.5-42, 10, 84);
-  ctx.fillStyle="rgba(255,0,124,0.85)"; ctx.fillRect(G.w()-28, G.h()*0.5-42, 10, 84);
-}
-
-function drawUnits(){
-  for(const u of G.unitsP){
-    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2);
-    ctx.strokeStyle="rgba(0,243,255,0.95)"; ctx.lineWidth=2; ctx.stroke();
-    ctx.globalAlpha=0.14; ctx.fillStyle="rgba(0,243,255,0.7)"; ctx.fill(); ctx.globalAlpha=1;
-  }
-  for(const u of G.unitsE){
-    ctx.beginPath(); ctx.arc(u.x,u.y,u.r,0,Math.PI*2);
-    ctx.strokeStyle="rgba(255,138,0,0.95)"; ctx.lineWidth=2; ctx.stroke();
-    ctx.globalAlpha=0.12; ctx.fillStyle="rgba(255,0,124,0.6)"; ctx.fill(); ctx.globalAlpha=1;
-  }
-}
-
-function drawBeam(){
-  if(!G.beaming) return;
-  ctx.shadowBlur = 18;
-  ctx.shadowColor = "rgba(252,238,10,0.35)";
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "rgba(252,238,10,0.85)";
-  ctx.beginPath();
-  ctx.moveTo(30, G.h()*0.5);
-  ctx.lineTo(G.beamX, G.beamY);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  ctx.beginPath();
-  ctx.arc(G.beamX, G.beamY, 18, 0, Math.PI*2);
-  ctx.strokeStyle="rgba(252,238,10,0.85)";
-  ctx.lineWidth=2;
-  ctx.stroke();
-}
-
-function drawFX(){
-  fctx.clearRect(0,0,G.w(),G.h());
-  const p = G.progress;
-
-  const g = fctx.createRadialGradient(G.w()/2,G.h()*0.45,G.w()*0.2,G.w()/2,G.h()*0.45,G.w()*0.85);
-  g.addColorStop(0,"rgba(0,0,0,0)");
-  g.addColorStop(1,"rgba(0,0,0,0.65)");
-  fctx.fillStyle=g; fctx.fillRect(0,0,G.w(),G.h());
-
-  for(let i=0;i<26;i++){
-    const x=(Math.sin(G.tick*0.25+i)*0.5+0.5)*G.w();
-    const y=(Math.cos(G.tick*0.23+i*1.7)*0.5+0.5)*G.h();
-    const r=45+(i%7)*16;
-    fctx.beginPath();
-    fctx.fillStyle=`rgba(255,120,90,${0.015 + p*0.06})`;
-    fctx.arc(x,y,r,0,Math.PI*2);
-    fctx.fill();
-  }
-}
-
-/* Loop */
-let last=performance.now();
-function loop(now){
-  if(!G.running) return;
-  const dt=Math.min(0.04,(now-last)/1000);
-  last=now;
-  G.tick += dt;
-
-  G.timeLeft -= dt;
-  if(G.timeLeft < 0) G.timeLeft = 0;
-  G.progress = clamp(G.progress + dt*0.012, 0, 1);
-
-  G.ram = Math.min(G.ramMax, G.ram + dt*G.ramRegen);
-
-  if(G.cdPulse>0) G.cdPulse = Math.max(0, G.cdPulse-dt);
-  if(G.cdEmp>0)   G.cdEmp   = Math.max(0, G.cdEmp-dt);
-
-  G.spawnT += dt;
-  const enemyBias = 0.30 + G.progress*0.55;
-  if(G.spawnT > 0.35){
-    G.spawnT = 0;
-    spawn("P");
-    if(Math.random() < enemyBias) spawn("E");
-    if(Math.random() < enemyBias*0.7) spawn("E");
+  // --------- PWA (optional) ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+      try { await navigator.serviceWorker.register('./sw.js'); } catch(e){}
+    });
   }
 
-  if(G.beaming) beamApply(dt);
+  // --------- Overworld Three.js ----------
+  const canvas = document.getElementById('threeCanvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setClearColor(0x05070a, 1);
 
-  const frontX = G.front * G.w();
-  for(const u of G.unitsP){
-    const dir = (frontX - u.x) > 0 ? 1 : -1;
-    u.x += dir * u.speed * dt;
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05070a, 0.035);
+
+  const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 200);
+  camera.position.set(0, 10, 14);
+
+  const hemi = new THREE.HemisphereLight(0x66ccff, 0x220022, 0.9);
+  scene.add(hemi);
+
+  const dir = new THREE.DirectionalLight(0xffffff, 0.65);
+  dir.position.set(6, 10, 4);
+  scene.add(dir);
+
+  // Ground
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(120, 120, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x06090d, roughness: 1, metalness: 0 })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = 0;
+  scene.add(ground);
+
+  // Neon grid
+  const grid = new THREE.GridHelper(120, 60, 0x00f3ff, 0x112233);
+  grid.material.opacity = 0.22;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  // City blocks (cheap lowpoly)
+  const city = new THREE.Group();
+  scene.add(city);
+
+  function rand(seed){
+    // simple LCG
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
   }
-  for(const u of G.unitsE){
-    const dir = (frontX - u.x) > 0 ? 1 : -1;
-    u.x += dir * u.speed * dt;
+  function buildCity(){
+    city.clear();
+    let seed = S.seed >>> 0;
+    const matA = new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.9, metalness: 0.05 });
+    const matB = new THREE.MeshStandardMaterial({ color: 0x111824, roughness: 0.85, metalness: 0.08 });
+
+    for(let i=0;i<180;i++){
+      seed = (seed*1664525 + 1013904223)>>>0;
+      const rx = (rand(seed)-0.5)*90; seed = (seed*1664525 + 1013904223)>>>0;
+      const rz = (rand(seed)-0.5)*90; seed = (seed*1664525 + 1013904223)>>>0;
+
+      // keep center playable
+      if (Math.hypot(rx, rz) < 10) continue;
+
+      const w = 0.8 + rand(seed)*2.2; seed = (seed*1664525 + 1013904223)>>>0;
+      const d = 0.8 + rand(seed)*2.2; seed = (seed*1664525 + 1013904223)>>>0;
+      const h = 0.8 + rand(seed)*7.5 * (0.6 + S.progress*0.7);
+
+      const m = (i%2===0)?matA:matB;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m);
+      b.position.set(rx, h/2, rz);
+      city.add(b);
+
+      // neon “windows”
+      if (rand(seed) < 0.25){
+        const neon = new THREE.Mesh(
+          new THREE.BoxGeometry(w*1.02, 0.04, d*1.02),
+          new THREE.MeshBasicMaterial({ color: (rand(seed)<0.5?0x00f3ff:0xff007c), transparent:true, opacity:0.35 })
+        );
+        neon.position.set(rx, h + 0.02, rz);
+        city.add(neon);
+      }
+    }
   }
 
-  const near=34;
-  let pNear=0, eNear=0;
+  // Player
+  const player = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.35, 0.7, 6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x00f3ff, roughness: 0.35, metalness: 0.3 })
+  );
+  player.position.set(S.player.x, 1.0, S.player.z);
+  scene.add(player);
 
-  G.unitsP = G.unitsP.filter(u=>{
-    if(u.hp<=0) return false;
-    if(Math.abs(u.x-frontX) < near){ pNear += u.power; u.hp -= 6.5*dt; }
-    return u.hp>0;
-  });
-  G.unitsE = G.unitsE.filter(u=>{
-    if(u.hp<=0) return false;
-    if(Math.abs(u.x-frontX) < near){ eNear += u.power; u.hp -= 6.5*dt; }
-    return u.hp>0;
-  });
+  // Nodes (missions + NPCs)
+  const nodes = [
+    { id:"n0", type:"npc", who:"nyx",  name:"NYX // Fixer",  pos:new THREE.Vector3(-6, 1, 2),  district:"Sector-07", locked:false },
+    { id:"n1", type:"mission", tier:1, name:"Frontline: Alley Sweep", pos:new THREE.Vector3(4, 1, -2), district:"Sector-07", locked:false },
+    { id:"n2", type:"npc", who:"ghost",name:"GHOST // Signal", pos:new THREE.Vector3(10,1, 7), district:"Market Sprawl", locked:true },
+    { id:"n3", type:"mission", tier:2, name:"Frontline: Data Convoy", pos:new THREE.Vector3(-14,1, -12), district:"Market Sprawl", locked:true },
+    { id:"n4", type:"mission", tier:3, name:"Frontline: Arasaka Pressure", pos:new THREE.Vector3(18,1, -16), district:"Arasaka Edge", locked:true },
+    { id:"n5", type:"npc", who:"agent",name:"Saka-Handler // ???", pos:new THREE.Vector3(22,1, 2), district:"Arasaka Edge", locked:true }
+  ];
 
-  const biasP = 1.05;
-  const biasE = 1.08 + G.progress*0.35;
-  const delta = (pNear*biasP - eNear*biasE) * 0.00075;
-  G.front = clamp(G.front + delta, 0.06, 0.94);
+  const nodeGroup = new THREE.Group();
+  scene.add(nodeGroup);
 
-  if(G.front > 0.92) return end(true);
-  if(G.front < 0.08) return end(false);
-  if(G.timeLeft <= 0) return end(G.front > 0.50);
+  const nodeMeshes = new Map();
+  function rebuildNodes(){
+    nodeGroup.clear();
+    nodeMeshes.clear();
 
-  ctx.clearRect(0,0,G.w(),G.h());
-  drawFront();
-  drawUnits();
-  drawBeam();
-  drawRings(dt);
-  drawFX();
+    nodes.forEach((n, idx) => {
+      const unlocked = !!S.unlocked[n.id];
+      const col = n.type==="npc" ? 0xff007c : 0x00f3ff;
+      const base = new THREE.Mesh(
+        new THREE.SphereGeometry(0.45, 18, 12),
+        new THREE.MeshStandardMaterial({ color: unlocked ? col : 0x333333, roughness:0.25, metalness:0.35 })
+      );
+      base.position.copy(n.pos);
 
-  hudFront.textContent = Math.round(G.front*100) + "%";
-  hudTime.textContent  = Math.ceil(G.timeLeft) + "s";
-  hudRam.textContent   = Math.floor(G.ram);
-
-  btnPulse.textContent = `PULSE (Tap) • ${G.cdPulse>0 ? G.cdPulse.toFixed(1)+"s" : "READY"} • RAM 12`;
-  btnEMP.textContent   = `EMP (Ult) • ${G.cdEmp>0 ? G.cdEmp.toFixed(0)+"s" : "READY"} • RAM 70`;
-
-  requestAnimationFrame(loop);
-}
-
-/* Start/Stop */
-function start(){
-  ui.style.display="none";
-  hud.style.display="flex";
-  bar.style.display="flex";
-  hint.style.display="block";
-  G.running=true;
-  resetRun();
-  last=performance.now();
-  requestAnimationFrame(loop);
-}
-function stop(){
-  G.running=false;
-  ui.style.display="flex";
-  hud.style.display="none";
-  bar.style.display="none";
-  hint.style.display="none";
-}
-function end(win){
-  G.running=false;
-  setTimeout(()=>{
-    alert(win ? "NODE TAKEN ✅  (Arasaka pushed back)" : "CONNECTION LOST ❌  (Arasaka overwhelmed you)");
-    stop();
-  }, 80);
-}
-
-btnStart.addEventListener("click", start, {passive:true});
-</script>
-
-</body>
-  </html>
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.7, 0.08, 10, 24),
+        new THREE.MeshBasicMaterial({ color: unlocked ? col : 0x222222, transparent:true, opacity:0.55 }
