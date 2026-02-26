@@ -1,0 +1,15 @@
+import { game } from "./core.js";
+import { openDialog } from "./ui.js";
+
+export function initWorld(){
+  game.nodes = [
+    {id:1, name:"Neon Gate", npc:"NYX", reward:100, heat:10},
+    {id:2, name:"Black Market", npc:"Ghost", reward:150, heat:20}
+  ];
+
+  window.addEventListener("click", () => {
+    const node = game.nodes[Math.floor(Math.random()*game.nodes.length)];
+    game.selectedNode = node;
+    openDialog(node);
+  });
+}
