@@ -9,6 +9,39 @@
   <!-- PWA optional: wenn du manifest/webmanifest hast -->
   <link rel="manifest" href="./manifest.webmanifest">
   <style>
+    /* ---- FIX: Canvas blockiert keine Klicks ---- */
+canvas {
+  pointer-events: none !important;
+}
+<style>
+  ... dein ganzes CSS ...
+
+  /* ==== FINAL CLICK FIX ==== */
+  canvas {
+    pointer-events: none !important;
+    z-index: 0 !important;
+  }
+
+  button,
+  #ui,
+  #menu,
+  .panel,
+  .modal {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 99999 !important;
+  }
+
+/* UI bleibt klickbar */
+button,
+#ui,
+#menu,
+.panel,
+.modal {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 9999;
+}
     :root{
       --bg:#05070a;
       --panel:rgba(8,12,18,.86);
@@ -26,7 +59,7 @@
     #app{position:relative;height:100%}
     canvas{position:absolute;inset:0;display:block}
     #threeCanvas{z-index:1; touch-action:none;} /* Canvas muss Touch bekommen für Raycast/Movement */
-    #ui{position:absolute;inset:0;z-index:10;pointer-events:none;} /* Panels setzen pointer-events:auto */
+    #ui{position:absolute;inset:0;z-index:10;pointer-events:auto;} /* Panels setzen pointer-events:auto */
 
     /* Scanlines / glow */
     #ui::before{
