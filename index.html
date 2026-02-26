@@ -58,7 +58,7 @@ button,
     html,body{margin:0;height:100%;background:var(--bg);color:#fff;font-family:var(--font);overflow:hidden}
     #app{position:relative;height:100%}
     canvas{position:absolute;inset:0;display:block}
-    #threeCanvas{z-index:1; touch-action:none;} /* Canvas muss Touch bekommen für Raycast/Movement */
+    #threeCanvas{z-index:1; touch-action:auto;} /* Canvas muss Touch bekommen für Raycast/Movement */
     #ui{position:absolute;inset:0;z-index:10;pointer-events:auto;} /* Panels setzen pointer-events:auto */
 
     /* Scanlines / glow */
