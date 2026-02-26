@@ -2,11 +2,10 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover" />
   <meta name="theme-color" content="#05070a" />
   <title>NEON ALLEY — Hybrid Overworld Prototype</title>
 
-  <!-- PWA (optional, du hast manifest.webmanifest & sw.js schon im Repo) -->
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon-192.png">
 
@@ -31,188 +30,99 @@
       color: var(--text);
       font-family: var(--font);
       overflow:hidden;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
+      touch-action: none; /* Verhindert Browser-Scrollen/Zoomen auf dem Tablet */
     }
 
-    /* ==== LAYERING (Klick-Fix) ==== */
-    #app{ position:relative; height:100%; width:100%; }
+    #app{ position:relative; height:100%; width:100%; overflow:hidden; }
+    
     #worldCanvas{
       position:absolute; inset:0;
       display:block;
-      z-index:0;                 /* Canvas hinten */
+      z-index:1;
       background: radial-gradient(circle at 50% 40%, rgba(0,243,255,.06), transparent 55%),
-                  radial-gradient(circle at 20% 80%, rgba(255,0,124,.06), transparent 55%),
                   linear-gradient(180deg, rgba(7,10,16,.0), rgba(0,0,0,.45));
-      touch-action:none;         /* Drag auf Canvas ok */
-    }
-    #ui{
-      position:absolute; inset:0;
-      z-index:10;                /* UI immer vorne */
-      pointer-events:auto;       /* UI ist klickbar */
     }
 
-    /* Scanlines */
+    #ui{
+      position:absolute; inset:0;
+      z-index:10;
+      pointer-events:none; /* Wichtig: Klicks gehen durch das UI-Overlay zum Canvas */
+    }
+
+    /* Alle UI-Elemente müssen pointer-events wieder einschalten */
+    .panel, .btn, .chip, #card { pointer-events: auto; }
+
     #ui::before{
       content:"";
       position:absolute; inset:0;
       pointer-events:none;
-      background: repeating-linear-gradient(to bottom, rgba(255,255,255,.02) 0 1px, transparent 1px 4px);
-      opacity:.25;
-      mix-blend-mode:screen;
+      background: repeating-linear-gradient(to bottom, rgba(255,255,255,.01) 0 1px, transparent 1px 4px);
+      opacity:.3;
     }
 
-    /* Panels */
     .panel{
       background: linear-gradient(180deg, rgba(10,16,24,.92), rgba(5,9,14,.92));
       border:1px solid rgba(0,243,255,.25);
       box-shadow: var(--shadowC);
-      backdrop-filter: blur(6px);
+      backdrop-filter: blur(8px);
       border-radius: 12px;
     }
     .panel.pink{ border-color: rgba(255,0,124,.28); box-shadow: var(--shadowP); }
 
-    /* HUD */
     #hud{
-      position:absolute; left:12px; right:12px; top:10px;
-      display:flex; gap:10px; align-items:stretch; justify-content:space-between;
+      position:absolute; left:12px; right:12px; top:12px;
+      display:flex; gap:10px; justify-content:space-between;
       pointer-events:none;
     }
-    #hud .left, #hud .right{ display:flex; gap:10px; align-items:stretch; }
-    .chip{
-      pointer-events:none;
-      padding:10px 12px;
-      min-width:120px;
-      border-radius:12px;
-      font-size:12px;
-      letter-spacing:.5px;
-      color:var(--muted);
-    }
-    .chip b{ color:var(--text); font-size:14px; }
+    .hud-group { display:flex; gap:8px; }
+    .chip{ padding:8px 12px; min-width:100px; font-size:11px; color:var(--muted); }
+    .chip b{ color:var(--text); font-size:13px; display:block; }
 
-    /* Main card */
     #centerWrap{
       position:absolute; inset:0;
       display:flex; align-items:center; justify-content:center;
-      padding:14px;
+      padding:20px;
+      pointer-events:none;
     }
     #card{
-      width:min(920px, 95vw);
-      padding:16px;
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:12px;
+      width:min(500px, 90vw);
+      padding:24px;
+      text-align:center;
     }
 
-    #logo{
-      text-align:center;
-      font-size:34px;
-      font-weight:900;
-      letter-spacing:6px;
-      color:var(--cyan);
-      text-shadow: 0 0 16px rgba(0,243,255,.35);
-      margin-top:6px;
-    }
-    #sub{
-      text-align:center;
-      font-size:12px;
-      letter-spacing:2px;
-      color:var(--pink);
-      opacity:.95;
-      margin-top:-6px;
-    }
-    #desc{
-      font-size:12px;
-      line-height:1.6;
-      color: #cfe0eb;
-      opacity:.95;
-      text-align:center;
-      margin: 0 6px;
-    }
+    #logo{ font-size:32px; font-weight:900; letter-spacing:4px; color:var(--cyan); margin-bottom:4px; }
+    #sub{ font-size:11px; color:var(--pink); letter-spacing:2px; margin-bottom:20px; }
 
-    /* Buttons */
-    .row{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:15px; }
     .btn{
-      appearance:none;
-      border:1px solid rgba(0,243,255,.55);
-      background: rgba(0,0,0,.22);
+      background: rgba(0,0,0,.3);
+      border:1px solid var(--cyan);
       color: var(--cyan);
-      padding:12px 14px;
-      font-weight:900;
-      letter-spacing:1px;
-      text-transform:uppercase;
-      border-radius:12px;
+      padding:14px 20px;
+      font-weight:bold;
+      border-radius:8px;
       cursor:pointer;
-      user-select:none;
-      touch-action: manipulation;
-    }
-    .btn:hover{ background: rgba(0,243,255,.10); }
-    .btn:active{ transform: translateY(1px); }
-    .btn.yellow{ border-color: rgba(252,238,10,.55); color: var(--yellow); }
-    .btn.pink{ border-color: rgba(255,0,124,.55); color: var(--pink); }
-
-    /* Overworld overlay */
-    #overworld{
-      position:absolute; left:12px; top:70px; width:min(440px, 92vw);
-      padding:12px;
-      display:none;
-    }
-    #overworld h3{
-      margin:0 0 8px 0;
-      font-size:12px;
-      color: var(--cyan);
-      letter-spacing:2px;
       text-transform:uppercase;
+      font-size:13px;
     }
-    #overworld .tiny{ font-size:11px; color: var(--muted); line-height:1.4; }
+    .btn.yellow{ border-color: var(--yellow); color: var(--yellow); }
+    .btn.pink{ border-color: var(--pink); color: var(--pink); }
 
-    /* NPC panel */
-    #npcPanel{
-      position:absolute; right:12px; top:70px; width:min(420px, 92vw);
-      padding:12px;
-      display:none;
+    #overworld, #npcPanel {
+      position:absolute; padding:15px; display:none; width: min(350px, 85vw);
     }
-    #npcPanel h3{
-      margin:0 0 8px 0;
-      font-size:12px;
-      letter-spacing:2px;
-      text-transform:uppercase;
-      color: var(--pink);
-    }
-    #npcText{ font-size:12px; line-height:1.55; color:#cfe0eb; }
-
-    /* Log / footer */
-    #log{
-      margin-top:6px;
-      font-size:11px;
-      color:var(--muted);
-      border-top:1px solid rgba(0,243,255,.14);
-      padding-top:8px;
-    }
-    #footerBar{
-      position:absolute; left:12px; right:12px; bottom:10px;
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-      padding:10px 12px;
-      pointer-events:none;
-    }
-    #quote{ font-size:12px; color:#cfe0eb; opacity:.95; pointer-events:none; }
-    #footerBtns{ display:flex; gap:10px; pointer-events:auto; }
+    #overworld { left:12px; top:80px; }
+    #npcPanel { right:12px; top:80px; }
+    
     #toast{
-      position:absolute; left:50%; bottom:64px; transform:translateX(-50%);
-      padding:10px 12px;
-      border-radius:12px;
-      background: rgba(0,0,0,.55);
-      border:1px solid rgba(0,243,255,.25);
-      box-shadow: var(--shadowC);
-      font-size:12px;
-      color:var(--text);
-      display:none;
-      pointer-events:none;
+      position:absolute; left:50%; bottom:100px; transform:translateX(-50%);
+      padding:12px 20px; border-radius:8px; background:rgba(0,0,0,0.8);
+      border:1px solid var(--cyan); color:white; display:none; z-index:100;
     }
 
-    @media (max-width: 900px){
-      #overworld, #npcPanel{ width: min(92vw, 520px); }
-      #npcPanel{ top: auto; bottom: 86px; }
+    @media (max-width: 800px) {
+      #npcPanel { top:auto; bottom:20px; left:12px; right:12px; width:auto; }
+      #overworld { width:auto; right:12px; }
     }
   </style>
 </head>
@@ -223,69 +133,40 @@
 
     <div id="ui">
       <div id="hud">
-        <div class="left">
-          <div class="chip panel">
-            DISTRICT<br><b id="district">Sector-07</b>
-          </div>
+        <div class="hud-group">
+          <div class="chip panel">DISTRICT<b id="district">Sector-07</b></div>
         </div>
-        <div class="right">
-          <div class="chip panel">EDDIES<br><b id="money">E$ 0</b></div>
-          <div class="chip panel">FRAGS<br><b id="frags">0</b></div>
-          <div class="chip panel">HEAT<br><b id="heat">0%</b></div>
-          <div class="chip panel">TIME<br><b id="timeOfDay">DAY</b></div>
+        <div class="hud-group">
+          <div class="chip panel">EDDIES<b id="money">E$ 0</b></div>
+          <div class="chip panel">HEAT<b id="heat">0%</b></div>
         </div>
       </div>
 
       <div id="centerWrap">
         <div id="card" class="panel">
-          <div id="logo">NEON&nbsp;ALLEY</div>
-          <div id="sub">OVERWORLD // NPCs // FRONTLINE</div>
-          <p id="desc">
-            Steuerung: Ziehen auf der Stadt = bewegen. Tap/Klick auf Nodes = Interaktion.<br>
-            <span style="color:var(--muted)">Mobile-Fix: UI liegt über dem Canvas, Buttons bleiben klickbar.</span>
+          <div id="logo">NEON ALLEY</div>
+          <div id="sub">TABLET OVERWORLD PROTOTYPE</div>
+          <p style="font-size:12px; color:var(--muted)">
+            Tablet: Ziehen zum Bewegen · Tippen auf Nodes.<br>
+            Desktop: WASD / Pfeiltasten · Enter zum Start.
           </p>
-
           <div class="row">
-            <button id="btnEnter" class="btn yellow">ENTER NIGHT CITY</button>
-            <button id="btnLoad" class="btn">LOAD SAVE</button>
-            <button id="btnReset" class="btn pink">RESET</button>
+            <button id="btnEnter" class="btn yellow">Initialisieren</button>
           </div>
-
-          <div id="log">LOG: <span id="logText">ready…</span></div>
         </div>
       </div>
 
       <div id="overworld" class="panel">
-        <h3>OVERWORLD // ROUTE NODES</h3>
-        <div class="tiny">
-          Tippe Nodes in der Karte. Jede Interaktion gibt Story-Fragmente + kleine Upgrades.
-        </div>
-        <div class="row" style="justify-content:flex-start; margin-top:10px;">
-          <button id="btnFocus" class="btn">FOCUS</button>
-          <button id="btnExport" class="btn">EXPORT</button>
-          <button id="btnImport" class="btn">IMPORT</button>
-        </div>
-        <div class="tiny" style="margin-top:10px;">
-          Save JSON wird als Datei heruntergeladen (Export) – Import liest eine Datei ein.
+        <h3 style="margin:0; font-size:12px; color:var(--cyan)">SYSTEM CONTROLS</h3>
+        <div class="row" style="justify-content:flex-start">
+          <button id="btnFocus" class="btn">Focus</button>
+          <button id="btnReset" class="btn pink">Reset</button>
         </div>
       </div>
 
       <div id="npcPanel" class="panel pink">
-        <h3>NPC // DIALOG</h3>
-        <div id="npcText">Tippe einen Node, um mit NYX oder GHOST zu interagieren.</div>
-        <div class="row" style="justify-content:flex-start; margin-top:10px;">
-          <button id="btnCallNyx" class="btn">CALL NYX</button>
-          <button id="btnPingGhost" class="btn pink">PING GHOST</button>
-        </div>
-      </div>
-
-      <div id="footerBar" class="panel pink">
-        <div id="quote">
-          <b>NYX:</b> “Choom. Overworld first. Dann Frontline. Und wenn Arasaka aufwacht… rennen wir nicht. Wir lenken.”
-        </div>
-        <div id="footerBtns">
-          <button id="btnHelp" class="btn">HELP</button>
-        </div>
+        <h3 id="npcName" style="margin:0; font-size:12px; color:var(--pink)">SIGNAL</h3>
+        <p id="npcText" style="font-size:13px; margin:10px 0;">Wähle einen Sektor auf der Karte...</p>
       </div>
 
       <div id="toast"></div>
@@ -293,329 +174,166 @@
   </div>
 
   <script type="module">
-    // ===== PWA: Service Worker (wenn sw.js existiert) =====
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(()=>{});
-      });
-    }
-
-    // ===== State =====
     const state = {
       money: 0,
-      frags: 0,
       heat: 0,
-      time: "DAY",
       camera: { x: 0, y: 0, zoom: 1 },
-      focused: false,
       nodes: [
-        { id:"N1", x:-220, y:-80, name:"Neon Gate", npc:"NYX", text:"Die Stadt atmet – aber nur durch Filter. Du hörst das Summen." },
-        { id:"N2", x:  40, y:-30, name:"Alley Market", npc:"GHOST", text:"Ein Händler ohne Gesicht. Er verkauft Erinnerungen in Glas." },
-        { id:"N3", x: 190, y: 110, name:"Skyline Relay", npc:"NYX", text:"Du siehst Drohnenlinien. Etwas scannt dich – kurz, dann still." },
-        { id:"N4", x:-60, y: 160, name:"Rust Dock", npc:"GHOST", text:"Metall, Wasser, Strom. Jemand hat eine Spur aus Licht gelegt." },
+        { id:"N1", x:-150, y:-100, name:"Neon Gate", npc:"NYX", text:"Verbindung stabil. Keine Scanner in Sicht." },
+        { id:"N2", x: 100, y:-50, name:"Alley Market", npc:"GHOST", text:"Schwarzmarkt-Preise steigen. Kauf jetzt." },
+        { id:"N3", x: 0, y: 150, name:"Skyline Relay", npc:"NYX", text:"Arasaka Patrouillen verstärkt. Vorsicht." },
       ],
       selected: null,
+      inGame: false
     };
 
-    // ===== UI refs =====
-    const $ = (id) => document.getElementById(id);
-    const moneyEl = $("money");
-    const fragsEl = $("frags");
-    const heatEl  = $("heat");
-    const timeEl  = $("timeOfDay");
-    const logText = $("logText");
-
-    const card = $("card");
-    const overworld = $("overworld");
-    const npcPanel = $("npcPanel");
-    const npcText = $("npcText");
-    const toast = $("toast");
-
-    // Buttons
-    const btnEnter = $("btnEnter");
-    const btnLoad  = $("btnLoad");
-    const btnReset = $("btnReset");
-    const btnFocus = $("btnFocus");
-    const btnExport = $("btnExport");
-    const btnImport = $("btnImport");
-    const btnCallNyx = $("btnCallNyx");
-    const btnPingGhost = $("btnPingGhost");
-    const btnHelp = $("btnHelp");
-
-    function setLog(msg){ logText.textContent = msg; }
-    function showToast(msg){
-      toast.textContent = msg;
-      toast.style.display = "block";
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(()=> toast.style.display="none", 1600);
-    }
-
-    function renderHUD(){
-      moneyEl.textContent = `E$ ${state.money}`;
-      fragsEl.textContent = `${state.frags}`;
-      heatEl.textContent = `${state.heat}%`;
-      timeEl.textContent = state.time;
-    }
-    renderHUD();
-
-    // ===== Canvas Overworld =====
-    const canvas = $("worldCanvas");
+    const canvas = document.getElementById("worldCanvas");
     const ctx = canvas.getContext("2d");
+    const $ = (id) => document.getElementById(id);
 
-    function resize(){
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      canvas.width = Math.floor(canvas.clientWidth * dpr);
-      canvas.height = Math.floor(canvas.clientHeight * dpr);
-      ctx.setTransform(dpr,0,0,dpr,0,0);
+    // Resize
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    function fit(){
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      resize();
-    }
-    fit();
     window.addEventListener("resize", resize);
+    resize();
 
-    function worldToScreen(wx, wy){
-      const cx = canvas.clientWidth/2;
-      const cy = canvas.clientHeight/2;
+    // Helper: Koordinaten umrechnen
+    function worldToScreen(wx, wy) {
       return {
-        x: cx + (wx - state.camera.x) * state.camera.zoom,
-        y: cy + (wy - state.camera.y) * state.camera.zoom
+        x: (window.innerWidth / 2) + (wx - state.camera.x) * state.camera.zoom,
+        y: (window.innerHeight / 2) + (wy - state.camera.y) * state.camera.zoom
       };
     }
-    function screenToWorld(sx, sy){
-      const cx = canvas.clientWidth/2;
-      const cy = canvas.clientHeight/2;
+    function screenToWorld(sx, sy) {
       return {
-        x: (sx - cx)/state.camera.zoom + state.camera.x,
-        y: (sy - cy)/state.camera.zoom + state.camera.y
+        x: (sx - window.innerWidth / 2) / state.camera.zoom + state.camera.x,
+        y: (sy - window.innerHeight / 2) / state.camera.zoom + state.camera.y
       };
     }
 
-    function draw(){
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      ctx.clearRect(0,0,w,h);
+    // Render Loop
+    function draw() {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      
+      // Grid
+      ctx.strokeStyle = "rgba(0, 243, 255, 0.1)";
+      ctx.lineWidth = 1;
+      const step = 60 * state.camera.zoom;
+      const offX = (-state.camera.x * state.camera.zoom) % step;
+      const offY = (-state.camera.y * state.camera.zoom) % step;
 
-      // grid glow
-      ctx.save();
-      ctx.globalAlpha = 0.18;
-      ctx.strokeStyle = "rgba(0,243,255,.25)";
-      const step = 70 * state.camera.zoom;
-      for(let x = (w/2 - state.camera.x*state.camera.zoom)%step; x < w; x += step){
-        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+      for(let x = offX; x < window.innerWidth; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, window.innerHeight); ctx.stroke();
       }
-      for(let y = (h/2 - state.camera.y*state.camera.zoom)%step; y < h; y += step){
-        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+      for(let y = offY; y < window.innerHeight; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(window.innerWidth, y); ctx.stroke();
       }
-      ctx.restore();
 
-      // links
-      ctx.save();
-      ctx.strokeStyle = "rgba(0,243,255,.18)";
-      ctx.lineWidth = 2;
-      for(let i=0;i<state.nodes.length-1;i++){
-        const a = worldToScreen(state.nodes[i].x, state.nodes[i].y);
-        const b = worldToScreen(state.nodes[i+1].x, state.nodes[i+1].y);
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-      }
-      ctx.restore();
-
-      // nodes
-      for(const n of state.nodes){
+      // Nodes
+      state.nodes.forEach(n => {
         const p = worldToScreen(n.x, n.y);
-        const r = 16;
-        const selected = state.selected && state.selected.id === n.id;
+        const active = state.selected === n;
+        
+        ctx.fillStyle = n.npc === "NYX" ? "rgba(0,243,255,0.5)" : "rgba(255,0,124,0.5)";
+        if(active) ctx.fillStyle = "#fff";
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 15 * state.camera.zoom, 0, Math.PI*2);
+        ctx.fill();
 
-        // halo
-        ctx.save();
-        ctx.globalAlpha = selected ? 0.65 : 0.35;
-        ctx.fillStyle = n.npc === "NYX" ? "rgba(0,243,255,.8)" : "rgba(255,0,124,.8)";
-        ctx.beginPath(); ctx.arc(p.x,p.y,r+8,0,Math.PI*2); ctx.fill();
-        ctx.restore();
-
-        // core
-        ctx.save();
-        ctx.fillStyle = "rgba(0,0,0,.55)";
-        ctx.strokeStyle = n.npc === "NYX" ? "rgba(0,243,255,.9)" : "rgba(255,0,124,.9)";
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.restore();
-
-        // label
-        ctx.save();
-        ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue("--font");
-        ctx.fillStyle = "rgba(207,224,235,.92)";
-        ctx.fillText(n.id + " · " + n.name, p.x + 22, p.y + 4);
-        ctx.restore();
-      }
+        ctx.fillStyle = "white";
+        ctx.font = "10px monospace";
+        ctx.fillText(n.name, p.x + 20, p.y + 5);
+      });
 
       requestAnimationFrame(draw);
     }
-    requestAnimationFrame(draw);
+    draw();
 
-    // ===== Interaction (Drag + Tap) =====
-    let dragging = false;
-    let last = {x:0,y:0};
+    // Interaction Logic
+    let isDragging = false;
+    let lastPos = { x: 0, y: 0 };
+    let totalDist = 0;
 
-    function onDown(e){
-      dragging = true;
-      const p = pointer(e);
-      last.x = p.x; last.y = p.y;
-    }
-    function onMove(e){
-      if(!dragging) return;
-      const p = pointer(e);
-      const dx = (p.x - last.x) / state.camera.zoom;
-      const dy = (p.y - last.y) / state.camera.zoom;
-      state.camera.x -= dx;
-      state.camera.y -= dy;
-      last.x = p.x; last.y = p.y;
-    }
-    function onUp(e){
-      if(!dragging) return;
-      dragging = false;
+    canvas.addEventListener("pointerdown", (e) => {
+      isDragging = true;
+      lastPos = { x: e.clientX, y: e.clientY };
+      totalDist = 0;
+    });
 
-      // Tap = wenn Bewegung klein war
-      const p = pointer(e);
-      const dist = Math.hypot(p.x-last.x, p.y-last.y);
-      if(dist < 8){
-        hitTest(p.x, p.y);
+    window.addEventListener("pointermove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - lastPos.x;
+      const dy = e.clientY - lastPos.y;
+      totalDist += Math.abs(dx) + Math.abs(dy);
+
+      state.camera.x -= dx / state.camera.zoom;
+      state.camera.y -= dy / state.camera.zoom;
+      lastPos = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener("pointerup", (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      // Wenn wenig bewegt wurde = Tap
+      if (totalDist < 10) {
+        const r = canvas.getBoundingClientRect();
+        const wpos = screenToWorld(e.clientX - r.left, e.clientY - r.top);
+        state.nodes.forEach(n => {
+          if (Math.hypot(wpos.x - n.x, wpos.y - n.y) < 30) {
+            selectNode(n);
+          }
+        });
       }
-    }
-    function pointer(e){
-      const r = canvas.getBoundingClientRect();
-      const t = e.touches && e.touches[0] ? e.touches[0] : null;
-      const c = t || e;
-      return { x: c.clientX - r.left, y: c.clientY - r.top };
-    }
-
-    function hitTest(sx, sy){
-      const wpos = screenToWorld(sx, sy);
-      let best = null;
-      let bestD = 99999;
-      for(const n of state.nodes){
-        const d = Math.hypot(wpos.x - n.x, wpos.y - n.y);
-        if(d < 30 && d < bestD){ best = n; bestD = d; }
-      }
-      if(!best) return;
-
-      state.selected = best;
-      state.frags += 1;
-      state.money += 15;
-      state.heat = Math.min(100, state.heat + 2);
-      renderHUD();
-
-      npcText.innerHTML =
-        `<b>${best.npc}</b> @ <span style="color:var(--cyan)">${best.name}</span><br><br>${best.text}<br><br>
-         <span style="color:var(--muted)">+1 Frag, +15 Eddies, +2% Heat</span>`;
-      showToast(`Node ${best.id} — ${best.name}`);
-      setLog(`interacted: ${best.id}`);
-    }
-
-    canvas.addEventListener("pointerdown", onDown, {passive:true});
-    canvas.addEventListener("pointermove", onMove, {passive:true});
-    canvas.addEventListener("pointerup", onUp, {passive:true});
-    canvas.addEventListener("pointercancel", onUp, {passive:true});
-
-    // ===== Menu flow =====
-    let inGame = false;
-    function enterCity(){
-      inGame = true;
-      card.style.display = "none";
-      overworld.style.display = "block";
-      npcPanel.style.display = "block";
-      setLog("entered overworld");
-      showToast("Welcome to Sector-07");
-    }
-
-    btnEnter.addEventListener("click", (e)=>{ e.preventDefault(); enterCity(); });
-    btnHelp.addEventListener("click", ()=> showToast("Drag = bewegen · Tap auf Nodes = Dialog/Rewards"));
-
-    // ===== Save/Load/Reset =====
-    function saveData(){
-      return {
-        v: 1,
-        t: Date.now(),
-        money: state.money,
-        frags: state.frags,
-        heat: state.heat,
-        time: state.time,
-        camera: state.camera,
-        selected: state.selected ? state.selected.id : null,
-      };
-    }
-    function applyData(d){
-      if(!d) return;
-      state.money = +d.money || 0;
-      state.frags = +d.frags || 0;
-      state.heat  = +d.heat  || 0;
-      state.time  = d.time || "DAY";
-      state.camera = d.camera || state.camera;
-      state.selected = state.nodes.find(n=>n.id===d.selected) || null;
-      renderHUD();
-      setLog("loaded save");
-      showToast("Save loaded");
-    }
-
-    btnLoad.addEventListener("click", ()=>{
-      const raw = localStorage.getItem("neonAlleySave");
-      if(!raw){ showToast("No save found"); return; }
-      try{ applyData(JSON.parse(raw)); }
-      catch{ showToast("Save corrupted"); }
     });
 
-    btnReset.addEventListener("click", ()=>{
-      localStorage.removeItem("neonAlleySave");
-      state.money=0; state.frags=0; state.heat=0; state.time="DAY"; state.selected=null;
-      state.camera={x:0,y:0,zoom:1};
-      renderHUD();
-      npcText.textContent = "Tippe einen Node, um mit NYX oder GHOST zu interagieren.";
-      setLog("reset");
-      showToast("Reset done");
+    // Tastatur Steuerung (Desktop Fallback)
+    window.addEventListener("keydown", (e) => {
+      if(e.key === "Enter" && !state.inGame) enterGame();
+      if(!state.inGame) return;
+      const s = 20 / state.camera.zoom;
+      if(e.key === "w" || e.key === "ArrowUp") state.camera.y -= s;
+      if(e.key === "s" || e.key === "ArrowDown") state.camera.y += s;
+      if(e.key === "a" || e.key === "ArrowLeft") state.camera.x -= s;
+      if(e.key === "d" || e.key === "ArrowRight") state.camera.x += s;
     });
 
-    btnFocus.addEventListener("click", ()=>{
-      state.focused = !state.focused;
-      state.camera.zoom = state.focused ? 1.25 : 1;
-      showToast(state.focused ? "FOCUS: ON" : "FOCUS: OFF");
-    });
+    function selectNode(n) {
+      state.selected = n;
+      state.money += 10;
+      state.heat = Math.min(100, state.heat + 5);
+      $("npcName").textContent = n.npc + " // " + n.name;
+      $("npcText").textContent = n.text;
+      $("money").textContent = "E$ " + state.money;
+      $("heat").textContent = state.heat + "%";
+      showToast("Sektor Daten empfangen");
+    }
 
-    btnCallNyx.addEventListener("click", ()=> showToast("NYX: “Keep it clean. Keep it quiet.”"));
-    btnPingGhost.addEventListener("click", ()=> showToast("GHOST: “Signal received… maybe.”"));
+    function showToast(m) {
+      $("toast").textContent = m;
+      $("toast").style.display = "block";
+      setTimeout(() => $("toast").style.display = "none", 2000);
+    }
 
-    btnExport.addEventListener("click", ()=>{
-      const data = saveData();
-      localStorage.setItem("neonAlleySave", JSON.stringify(data));
-      const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "neonAlleySave.json";
-      a.click();
-      URL.revokeObjectURL(a.href);
-      showToast("Exported save.json");
-    });
+    function enterGame() {
+      state.inGame = true;
+      $("centerWrap").style.display = "none";
+      $("overworld").style.display = "block";
+      $("npcPanel").style.display = "block";
+      showToast("Link hergestellt.");
+    }
 
-    btnImport.addEventListener("click", ()=>{
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "application/json";
-      input.onchange = async () => {
-        const f = input.files?.[0];
-        if(!f) return;
-        try{
-          const text = await f.text();
-          const data = JSON.parse(text);
-          localStorage.setItem("neonAlleySave", JSON.stringify(data));
-          applyData(data);
-        }catch{
-          showToast("Import failed");
-        }
-      };
-      input.click();
-    });
+    // Button Events
+    $("btnEnter").onclick = enterGame;
+    $("btnFocus").onclick = () => {
+      state.camera.zoom = state.camera.zoom === 1 ? 1.8 : 1;
+    };
+    $("btnReset").onclick = () => location.reload();
 
-    // Auto-save every 15s when in game
-    setInterval(()=>{
-      if(!inGame) return;
-      localStorage.setItem("neonAlleySave", JSON.stringify(sa
+  </script>
+</body>
+</html>
